@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SalesPulse BI — Upload your CSV or Excel sales data and instantly generate interactive KPI dashboards, trend charts, forecasts, and business recommendations. All processing is client-side." />
+  <title>SalesPulse BI — Interactive Sales Analytics Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- PapaParse (CSV) -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- SheetJS (Excel .xlsx / .xls) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <noscript><style>body::before{content:"SalesPulse BI requires JavaScript. Please enable JavaScript in your browser.";display:block;padding:40px;font-family:sans-serif;font-size:16px;color:#1f2328;}</style></noscript>
+</head>
+<body>
+
+<!-- ═══════════════════════ TOPBAR ═══════════════════════════════ -->
+<header class="topbar" id="topbar" role="banner">
+  <div class="topbar-left">
+    <span class="brand">&#9632; SalesPulse BI</span>
+    <span class="page-sub" id="topbar-file-info"></span>
+  </div>
+  <div class="topbar-right">
+    <span id="topbar-scope" class="scope-badge" style="display:none;"></span>
+    <button id="btn-theme" class="btn-icon" aria-label="Toggle dark mode" title="Toggle dark/light mode">&#9788;</button>
+    <button id="btn-clear-data" class="btn-ghost" style="display:none;" aria-label="Clear current data and start over">&#10005; Clear Data</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════ UPLOAD SCREEN ══════════════════════ -->
+<main id="upload-screen" class="upload-screen" role="main">
+  <div class="upload-hero">
+    <div class="upload-logo">&#9632;</div>
+    <h1 class="upload-title">SalesPulse BI</h1>
+    <p class="upload-desc">Upload your Excel or CSV sales data. The dashboard automatically detects columns, validates data, and generates interactive analytics — no coding required.</p>
+
+    <!-- Drop Zone -->
+    <div id="drop-zone" class="drop-zone" role="button" tabindex="0"
+         aria-label="Drop your file here or click to browse"
+         aria-describedby="upload-hint">
+      <div class="drop-zone-icon">&#8679;</div>
+      <div class="drop-zone-text">Drag &amp; drop your file here</div>
+      <div class="drop-zone-sub" id="upload-hint">Excel (.xlsx, .xls) or CSV — processed entirely in your browser</div>
+      <label class="btn-primary upload-label" for="file-input">
+        Browse File
+        <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display:none;" aria-label="Choose file to upload" />
+      </label>
+    </div>
+
+    <!-- Upload progress -->
+    <div id="upload-progress" class="upload-progress" style="display:none;" role="status" aria-live="polite">
+      <div class="progress-bar-wrap"><div id="progress-bar" class="progress-bar"></div></div>
+      <span id="progress-text">Reading file…</span>
+    </div>
+
+    <!-- Upload error -->
+    <div id="upload-error" class="upload-error" style="display:none;" role="alert">
+      <span class="error-icon">&#9888;</span>
+      <span id="upload-error-text"></span>
+    </div>
+
+    <!-- Portfolio note -->
+    <div class="privacy-note">
+      <span>&#128274;</span> Your file is processed entirely in your browser. Nothing is uploaded to any server.
+      <a href="#portfolio-info" class="link-subtle">About this dashboard</a>
+    </div>
+  </div>
+
+  <!-- Portfolio info (at bottom of upload screen) -->
+  <section id="portfolio-info" class="portfolio-info" aria-label="About this dashboard">
+    <div class="portfolio-grid">
+      <div class="portfolio-card">
+        <div class="portfolio-card-title">&#9650; What This Dashboard Does</div>
+        <ul class="portfolio-list">
+          <li>Auto-detects column types from your file</li>
+          <li>Maps columns to revenue, quantity, date, region, category, and more</li>
+          <li>Validates data quality before generating analytics</li>
+          <li>Computes KPIs with documented formulas</li>
+          <li>Generates concise, evidence-based executive insights</li>
+          <li>Provides actionable recommendations</li>
+        </ul>
+      </div>
+      <div class="portfolio-card">
+        <div class="portfolio-card-title">&#9632; Technologies Used</div>
+        <ul class="portfolio-list">
+          <li>HTML5 · CSS (custom) · Vanilla JavaScript</li>
+          <li>Chart.js 4 for visualisations</li>
+          <li>PapaParse for robust CSV parsing</li>
+          <li>SheetJS (XLSX) for Excel support</li>
+          <li>100% client-side — no backend, no server</li>
+        </ul>
+      </div>
+      <div class="portfolio-card">
+        <div class="portfolio-card-title">&#9432; Privacy</div>
+        <ul class="portfolio-list">
+          <li>Files never leave your browser</li>
+          <li>No data sent to any server</li>
+          <li>No analytics or tracking on your data</li>
+          <li>Clear Data button removes all data from session</li>
+          <li>Safe to use with business data</li>
+        </ul>
+      </div>
+      <div class="portfolio-card">
+        <div class="portfolio-card-title">&#9670; Supported Columns</div>
+        <ul class="portfolio-list">
+          <li>Revenue / Sales / Amount / Total</li>
+          <li>Date / Order Date / Transaction Date</li>
+          <li>Quantity / Qty / Units Sold</li>
+          <li>Discount / Discount Rate / Discount %</li>
+          <li>Region / Territory / Area</li>
+          <li>Category / Product / Salesperson / Channel</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══════════════════════ MAPPING SCREEN ═════════════════════ -->
+<div id="mapping-screen" class="screen" style="display:none;" role="main">
+  <div class="screen-inner">
+    <div class="screen-header">
+      <div>
+        <h2 class="screen-title">&#9998; Review Column Mapping</h2>
+        <p class="screen-sub" id="mapping-file-info"></p>
+      </div>
+      <button id="btn-back-upload" class="btn-ghost">&#8592; Change File</button>
+    </div>
+
+    <!-- Data preview -->
+    <div class="preview-section">
+      <div class="section-label">Data Preview (first 5 rows)</div>
+      <div class="table-scroll" id="preview-table-wrap" role="region" aria-label="Data preview" tabindex="0"></div>
+    </div>
+
+    <!-- Column mapping -->
+    <div class="mapping-section">
+      <div class="section-label">Column Mapping <span class="label-hint">— Correct if detection is wrong</span></div>
+      <div id="mapping-grid" class="mapping-grid"></div>
+    </div>
+
+    <!-- Validation warnings -->
+    <div id="validation-warnings" class="validation-warnings" style="display:none;">
+      <div class="section-label" style="color:var(--c-amber);">&#9888; Data Quality Warnings</div>
+      <div id="validation-list"></div>
+    </div>
+
+    <!-- Row count summary -->
+    <div id="mapping-summary" class="mapping-summary"></div>
+
+    <!-- Actions -->
+    <div class="mapping-actions">
+      <button id="btn-generate" class="btn-primary btn-large">&#9658; Generate Dashboard</button>
+      <span class="mapping-note" id="mapping-note"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ DASHBOARD SCREEN ════════════════════ -->
+<div id="dashboard-screen" class="screen" style="display:none;" role="main">
+
+  <!-- FILTER BAR -->
+  <section class="filter-bar" role="search" aria-label="Dashboard filters" id="filter-bar">
+    <div id="filter-controls" class="filter-controls"></div>
+    <div class="filter-bar-right">
+      <span id="filter-row-count" class="row-count-badge"></span>
+      <div id="active-filter-badges" class="active-badges"></div>
+      <button id="btn-reset-filters" class="btn-ghost btn-sm">&#10005; Reset</button>
+    </div>
+  </section>
+
+  <!-- LAYER 1: EXECUTIVE OVERVIEW -->
+  <section class="dash-section" id="section-overview" aria-labelledby="lbl-overview">
+    <div class="kpi-row" id="kpi-row" role="list" aria-label="Key Performance Indicators"></div>
+  </section>
+
+  <!-- LAYER 2: EXECUTIVE INSIGHTS -->
+  <section class="dash-section dash-section--insights" id="section-insights" aria-labelledby="lbl-insights">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-insights">&#9432; Executive Insights</h2>
+      <button class="btn-collapse" id="btn-collapse-insights" aria-expanded="true" aria-controls="insight-body">&#9660;</button>
+    </div>
+    <div id="insight-body">
+      <div id="smart-alerts" class="smart-alerts" style="display:none;" role="alert" aria-live="assertive"></div>
+      <div id="insight-cards" class="insight-row-grid" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- LAYER 3: PERFORMANCE DRIVERS — Charts Row 1 -->
+  <section class="dash-section" id="section-perf" aria-labelledby="lbl-perf">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-perf">&#9650; Performance Drivers</h2>
+      <div class="chart-actions">
+        <span id="trend-granularity-wrap" style="display:none;">
+          <label for="trend-gran" class="mini-label">Granularity</label>
+          <select id="trend-gran" class="mini-select" aria-label="Trend granularity">
+            <option value="month">Monthly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="week">Weekly</option>
+          </select>
+        </span>
+      </div>
+    </div>
+    <div class="chart-grid-2col" id="chart-grid-perf">
+      <div class="chart-card span2" id="wrap-trend">
+        <div class="chart-card-header"><span class="chart-title" id="title-trend">Revenue Trend</span><span class="chart-sub" id="sub-trend"></span></div>
+        <canvas id="chart-trend" role="img" aria-label="Revenue trend chart"></canvas>
+      </div>
+      <div class="chart-card" id="wrap-category">
+        <div class="chart-card-header"><span class="chart-title">Revenue by Category</span><span class="chart-sub">Contribution share</span></div>
+        <canvas id="chart-category" role="img" aria-label="Revenue by category"></canvas>
+      </div>
+      <div class="chart-card" id="wrap-region">
+        <div class="chart-card-header"><span class="chart-title">Regional Performance</span><span class="chart-sub">Revenue &amp; transactions</span></div>
+        <canvas id="chart-region" role="img" aria-label="Regional performance bar chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 4: SEGMENT & PRODUCT ANALYSIS — Charts Row 2 -->
+  <section class="dash-section" id="section-segment" aria-labelledby="lbl-segment">
+    <h2 class="section-title" id="lbl-segment">&#9670; Segment &amp; Product Analysis</h2>
+    <div class="chart-grid-2col" id="chart-grid-segment">
+      <div class="chart-card" id="wrap-top-products">
+        <div class="chart-card-header"><span class="chart-title">Top 10 Products</span><span class="chart-sub">By revenue</span></div>
+        <canvas id="chart-top-products" role="img" aria-label="Top products by revenue"></canvas>
+      </div>
+      <div class="chart-card" id="wrap-salesperson">
+        <div class="chart-card-header"><span class="chart-title">Salesperson Leaderboard</span><span class="chart-sub">By revenue</span></div>
+        <canvas id="chart-salesperson" role="img" aria-label="Salesperson leaderboard"></canvas>
+      </div>
+      <div class="chart-card" id="wrap-channel">
+        <div class="chart-card-header"><span class="chart-title">Sales Channel</span><span class="chart-sub">Revenue share</span></div>
+        <canvas id="chart-channel" role="img" aria-label="Sales channel distribution"></canvas>
+      </div>
+      <div class="chart-card" id="wrap-discount-scatter">
+        <div class="chart-card-header"><span class="chart-title">Discount vs Revenue</span><span class="chart-sub">Correlation scatter</span></div>
+        <canvas id="chart-discount-scatter" role="img" aria-label="Discount versus revenue scatter"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 5: ADVANCED ANALYTICS (Phase 3) -->
+  <section class="dash-section" id="section-advanced" aria-labelledby="lbl-advanced">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-advanced">&#128200; Advanced Analytics</h2>
+      <button class="btn-collapse" id="btn-collapse-advanced" aria-expanded="true" aria-controls="advanced-body">&#9660;</button>
+    </div>
+    <div id="advanced-body">
+
+      <!-- 5a: Forecast -->
+      <div class="adv-sub-section" id="adv-forecast-wrap">
+        <div class="adv-sub-header">
+          <span class="adv-sub-title">&#128202; Revenue Forecast (3 months)</span>
+          <span class="adv-sub-hint">Linear regression on historical monthly revenue</span>
+        </div>
+        <div class="chart-grid-2col">
+          <div class="chart-card span2" id="wrap-forecast">
+            <div class="chart-card-header">
+              <span class="chart-title" id="title-forecast">Trend + Forecast</span>
+              <span class="chart-sub" id="sub-forecast">Historical actuals &amp; 3-month projection</span>
+            </div>
+            <canvas id="chart-forecast" role="img" aria-label="Revenue forecast chart"></canvas>
+          </div>
+        </div>
+        <div id="forecast-summary" class="adv-summary-strip"></div>
+      </div>
+
+      <!-- 5b: Cohort / Retention -->
+      <div class="adv-sub-section" id="adv-cohort-wrap">
+        <div class="adv-sub-header">
+          <span class="adv-sub-title">&#128101; Customer Cohort Analysis</span>
+          <span class="adv-sub-hint">Monthly revenue cohorts (requires segment or customer_id)</span>
+        </div>
+        <div id="cohort-table-wrap" class="table-scroll" role="region" aria-label="Cohort analysis table" tabindex="0"></div>
+        <div id="cohort-unavail" class="feature-unavailable" style="display:none;">Cohort analysis requires a <strong>segment</strong> or <strong>customer_id</strong> column mapped.</div>
+      </div>
+
+      <!-- 5c: Basket / Cross-sell -->
+      <div class="adv-sub-section" id="adv-basket-wrap">
+        <div class="adv-sub-header">
+          <span class="adv-sub-title">&#128717; Cross-Sell &amp; Basket Analysis</span>
+          <span class="adv-sub-hint">Top product pairs co-purchased by the same salesperson on the same date</span>
+        </div>
+        <div id="basket-table-wrap" class="table-scroll" role="region" aria-label="Basket analysis table" tabindex="0"></div>
+        <div id="basket-unavail" class="feature-unavailable" style="display:none;">Basket analysis requires both <strong>product</strong> and <strong>date</strong> columns mapped.</div>
+      </div>
+
+      <!-- 5d: What-If Simulator -->
+      <div class="adv-sub-section" id="adv-whatif-wrap">
+        <div class="adv-sub-header">
+          <span class="adv-sub-title">&#127919; What-If Revenue Simulator</span>
+          <span class="adv-sub-hint">Adjust volume and price to model revenue scenarios</span>
+        </div>
+        <div class="whatif-panel">
+          <div class="whatif-controls">
+            <div class="whatif-row">
+              <label class="whatif-label" for="wi-volume">Volume change</label>
+              <input type="range" id="wi-volume" class="whatif-range" min="-50" max="100" value="0" step="5" aria-label="Volume change percent" />
+              <span class="whatif-val" id="wi-volume-val">+0%</span>
+            </div>
+            <div class="whatif-row">
+              <label class="whatif-label" for="wi-price">Price / AOV change</label>
+              <input type="range" id="wi-price" class="whatif-range" min="-30" max="50" value="0" step="5" aria-label="Price change percent" />
+              <span class="whatif-val" id="wi-price-val">+0%</span>
+            </div>
+            <div class="whatif-row">
+              <label class="whatif-label" for="wi-discount">Discount change</label>
+              <input type="range" id="wi-discount" class="whatif-range" min="-10" max="10" value="0" step="1" aria-label="Discount change in pp" />
+              <span class="whatif-val" id="wi-discount-val">+0 pp</span>
+            </div>
+            <button id="btn-wi-reset" class="btn-ghost btn-sm" style="margin-top:4px;">&#10005; Reset</button>
+          </div>
+          <div class="whatif-results" id="wi-results">
+            <div class="wi-result-card" id="wi-base">
+              <div class="wi-result-label">Baseline Revenue</div>
+              <div class="wi-result-value" id="wi-base-val">—</div>
+              <div class="wi-result-sub">Current filtered view</div>
+            </div>
+            <div class="wi-arrow">&#8594;</div>
+            <div class="wi-result-card wi-projected" id="wi-proj">
+              <div class="wi-result-label">Projected Revenue</div>
+              <div class="wi-result-value" id="wi-proj-val">—</div>
+              <div class="wi-result-sub" id="wi-delta-label">Delta: —</div>
+            </div>
+          </div>
+          <div class="whatif-note">
+            &#9888; Simulation only. Results are mechanical projections and do not account for market elasticity, capacity limits, or competitive effects.
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /advanced-body -->
+  </section>
+
+  <!-- LAYER 6: RECOMMENDATIONS -->
+  <section class="dash-section" id="section-recs" aria-labelledby="lbl-recs">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-recs">&#9658; Recommended Actions</h2>
+      <button class="btn-collapse" id="btn-collapse-recs" aria-expanded="true" aria-controls="recs-body">&#9660;</button>
+    </div>
+    <div id="recs-body">
+      <div id="rec-cards" class="rec-row-grid"></div>
+    </div>
+  </section>
+
+  <!-- LAYER 6: DETAIL TABLE + WHAT-IF -->
+  <section class="dash-section" id="section-detail" aria-labelledby="lbl-detail">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-detail">&#9776; Transaction Detail</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="btn-export-csv" class="btn-ghost btn-sm">&#8595; Export CSV</button>
+        <button class="btn-collapse" id="btn-collapse-table" aria-expanded="false" aria-controls="detail-body">&#9660;</button>
+      </div>
+    </div>
+    <div id="detail-body" style="display:none;">
+      <div class="table-toolbar">
+        <span id="table-count-label" class="row-count-badge"></span>
+        <input type="search" id="table-search" class="table-search" placeholder="Search…" aria-label="Search table" />
+      </div>
+      <div class="table-scroll" id="detail-table-wrap" tabindex="0" role="region" aria-label="Transaction detail table"></div>
+    </div>
+  </section>
+
+  <!-- LAYER 7: DATA QUALITY & KPI DEFINITIONS -->
+  <section class="dash-section" id="section-dq" aria-labelledby="lbl-dq">
+    <div class="section-header-row">
+      <h2 class="section-title" id="lbl-dq">&#9679; Data Quality &amp; Definitions</h2>
+      <button class="btn-collapse" id="btn-collapse-dq" aria-expanded="false" aria-controls="dq-body">&#9660;</button>
+    </div>
+    <div id="dq-body" style="display:none;">
+      <div class="dq-row-grid">
+        <div class="dq-card" id="dq-stats-card">
+          <div class="dq-card-title">Quality Report</div>
+          <div id="dq-stats"></div>
+        </div>
+        <div class="dq-card" id="dq-mapping-card">
+          <div class="dq-card-title">Column Mapping Used</div>
+          <div id="dq-mapping"></div>
+        </div>
+        <div class="dq-card" id="dq-kpi-card">
+          <div class="dq-card-title">KPI Definitions</div>
+          <div id="dq-kpidefs"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+<!-- end #dashboard-screen -->
+
+<footer class="app-footer" role="contentinfo">
+  <span>SalesPulse BI &copy; 2024 — Client-side analytics. Your data never leaves your browser.</span>
+  <button id="btn-new-file" class="btn-ghost btn-sm" style="display:none;">&#8679; New File</button>
+</footer>
+
+<!-- ═══════════════════ SHEET SELECTION MODAL ════════════════════ -->
+<div id="sheet-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="sheet-modal-title">
+  <div class="modal-box">
+    <div class="modal-title" id="sheet-modal-title">&#9776; Select Sheet</div>
+    <p class="modal-sub">Multiple sheets found. Choose the sheet to analyse:</p>
+    <div id="sheet-modal-list" class="sheet-list"></div>
+    <div class="modal-actions">
+      <button id="sheet-modal-cancel" class="btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "salespulse-bi",
+  "version": "2.0.0",
+  "description": "SalesPulse BI — Interactive client-side Sales Analytics Dashboard (Phase 1+2+3 complete)",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test":   "jest tests/unit.test.js --no-coverage",
+    "lint":   "eslint script.js --env browser,es2022",
+    "start":  "python -m http.server 8080 --directory .",
+    "start:node": "npx serve . -p 8080"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/*.test.js"]
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest":   "^29.7.0"
+  },
+  "dependencies": {},
+  "notes": {
+    "chart.js":  "Loaded via CDN — cdn.jsdelivr.net/npm/chart.js@4.4.3",
+    "papaparse": "Loaded via CDN — cdn.jsdelivr.net/npm/papaparse@5.4.1",
+    "xlsx":      "Loaded via CDN — cdn.jsdelivr.net/npm/xlsx@0.18.5"
+  }
+}
