@@ -1,0 +1,143 @@
+name: Sync Google Sheets → data/sheet.json
+
+# ─────────────────────────────────────────────────────────────────
+# WHEN THIS RUNS
+# ─────────────────────────────────────────────────────────────────
+on:
+  # Daily at 06:00 UTC (adjust to your timezone)
+  schedule:
+    - cron: "0 6 * * *"
+
+  # Manual trigger (GitHub → Actions → Run workflow)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (do not write output or commit)"
+        required: false
+        default: "false"
+        type: boolean
+
+# ─────────────────────────────────────────────────────────────────
+# REQUIRED REPOSITORY SECRETS
+# Set these in: GitHub → Settings → Secrets → Actions
+#
+#   GOOGLE_SHEET_ID            — Spreadsheet ID from the Google Sheets URL
+#                                  Example: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms
+#   GOOGLE_SERVICE_ACCOUNT_KEY — Full JSON of the service-account key
+#                                  (raw JSON or base64-encoded, both work)
+#
+# OPTIONAL SECRETS / VARS
+#   GOOGLE_SHEET_NAME          — Tab name (default: "Sheet1")
+# ─────────────────────────────────────────────────────────────────
+
+permissions:
+  contents: write   # needed to commit data/sheet.json back to repo
+
+jobs:
+  sync:
+    name: Fetch & Commit sheet.json
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use a token that can push commits (default GITHUB_TOKEN is fine
+          # when permissions.contents = write is set above)
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Setup Node ────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # ── 3. Install googleapis (sync-only dependency) ─────────────
+      - name: Install sync dependencies
+        run: |
+          npm install --save-dev googleapis@134
+          echo "✅ googleapis installed"
+
+      # ── 4. Validate secrets are present ─────────────────────────
+      - name: Check required secrets
+        run: |
+          if [ -z "$GOOGLE_SHEET_ID" ]; then
+            echo "❌ GOOGLE_SHEET_ID secret is not set. Aborting."
+            exit 1
+          fi
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_KEY" ]; then
+            echo "❌ GOOGLE_SERVICE_ACCOUNT_KEY secret is not set. Aborting."
+            exit 1
+          fi
+          echo "✅ Secrets present"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+
+      # ── 5. Run sync script ───────────────────────────────────────
+      - name: Sync Google Sheet to data/sheet.json
+        run: node scripts/syncSheets.js
+        env:
+          GOOGLE_SHEET_ID:            ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_SHEET_NAME:          ${{ vars.GOOGLE_SHEET_NAME || 'Sheet1' }}
+          OUTPUT_PATH:                data/sheet.json
+          DRY_RUN:                    ${{ inputs.dry_run || 'false' }}
+
+      # ── 6. Verify output file exists and is valid JSON ───────────
+      - name: Validate output
+        run: |
+          if [ ! -f "data/sheet.json" ]; then
+            echo "❌ data/sheet.json was not created."
+            exit 1
+          fi
+          # Check it parses as valid JSON
+          node -e "
+            const d = require('./data/sheet.json');
+            console.log('✅ sheet.json is valid JSON');
+            console.log('   Rows   :', d.metadata?.valid_rows ?? '?');
+            console.log('   Fetched:', d.metadata?.fetched_at ?? '?');
+          "
+
+      # ── 7. Commit and push data/sheet.json ──────────────────────
+      # Skipped on dry-run
+      - name: Commit data/sheet.json
+        if: ${{ inputs.dry_run != 'true' }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sheet.json
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to data/sheet.json — skipping commit."
+          else
+            ROWS=$(node -e "const d=require('./data/sheet.json');console.log(d.metadata.valid_rows)")
+            git commit -m "chore(data): sync sheet.json — ${ROWS} rows [$(date -u +%Y-%m-%dT%H:%M)]"
+            git push
+            echo "✅ data/sheet.json committed and pushed."
+          fi
+
+      # ── 8. Summary ──────────────────────────────────────────────
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Google Sheets Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "data/sheet.json" ]; then
+            node -e "
+              const d = require('./data/sheet.json');
+              const m = d.metadata;
+              console.log('| Key | Value |');
+              console.log('|-----|-------|');
+              console.log(\`| Sheet ID | \${m.sheet_id} |\`);
+              console.log(\`| Tab | \${m.sheet_name} |\`);
+              console.log(\`| Fetched at | \${m.fetched_at} |\`);
+              console.log(\`| Total rows | \${m.total_rows} |\`);
+              console.log(\`| Valid rows | \${m.valid_rows} |\`);
+              console.log(\`| Skipped | \${m.skipped_rows} |\`);
+            " >> $GITHUB_STEP_SUMMARY
+          else
+            echo "data/sheet.json not found — sync likely failed." >> $GITHUB_STEP_SUMMARY
+          fi

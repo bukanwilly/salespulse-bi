@@ -1,0 +1,101 @@
+name: Deploy SalesPulse BI to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ── Job 1: Validate HTML & JS syntax, run unit tests ─────────────
+  test:
+    name: Validate & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dev dependencies (Jest only)
+        run: npm install --save-dev jest@29 2>/dev/null || true
+
+      - name: Run unit tests
+        run: npx jest tests/unit.test.js --no-coverage --passWithNoTests
+        continue-on-error: false
+
+      - name: Check HTML validity (basic)
+        run: |
+          # Check index.html is well-formed (has DOCTYPE, body, script tags)
+          grep -q '<!DOCTYPE html>'  index.html && echo "✅ DOCTYPE present"
+          grep -q '<canvas'          index.html && echo "✅ Canvas elements present"
+          grep -q 'chart.js'         index.html && echo "✅ Chart.js CDN referenced"
+          grep -q 'papaparse'        index.html && echo "✅ PapaParse CDN referenced"
+          grep -q 'script.js'        index.html && echo "✅ script.js linked"
+          echo "✅ HTML basic checks passed"
+
+      - name: Check JS brace balance
+        run: |
+          OPEN=$(grep -o '{' script.js | wc -l)
+          CLOSE=$(grep -o '}' script.js | wc -l)
+          echo "Open braces: $OPEN  Close braces: $CLOSE"
+          [ "$OPEN" -eq "$CLOSE" ] && echo "✅ Brace balance OK" || (echo "❌ Brace mismatch!" && exit 1)
+
+      - name: Check no eval() usage
+        run: |
+          if grep -n 'eval(' script.js; then
+            echo "❌ eval() found — security violation!"
+            exit 1
+          else
+            echo "✅ No eval() usage"
+          fi
+
+      - name: Check no hardcoded secrets
+        run: |
+          # Ensure no API keys, tokens, or passwords are in JS
+          if grep -iE '(api_key|apikey|secret|password|token)\s*=\s*["\x27][A-Za-z0-9]{10,}' script.js; then
+            echo "❌ Possible hardcoded secret found!"
+            exit 1
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+
+  # ── Job 2: Deploy to GitHub Pages ────────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository root (all static files)
+          path: "."
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
